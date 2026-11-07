@@ -14,3 +14,4 @@ keystore/
 
 # libs 里保留 api-82.jar（必须提交）
 !app/libs/api-82.jar
+.github/

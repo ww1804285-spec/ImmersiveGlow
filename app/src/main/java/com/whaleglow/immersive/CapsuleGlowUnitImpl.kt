@@ -25,7 +25,7 @@ import android.widget.FrameLayout
  */
 class CapsuleGlowUnitImpl(
     context: Context,
-    private val shape: LightShapeImpl = LightShapeImpl.RoundRectShape()
+    private val shape: LightShapeImpl = RoundRectShape()
 ) {
 
     companion object {
@@ -49,13 +49,13 @@ class CapsuleGlowUnitImpl(
         }
 
         override fun onDraw(canvas: Canvas) {
-            lightLayer.bounds = 0, 0, width, height
+            lightLayer.bounds = Rect(0, 0, width, height)
             lightLayer.draw(canvas)
         }
 
         override fun dispatchDraw(canvas: Canvas) {
             super.dispatchDraw(canvas)
-            particleLayer.bounds = 0, 0, width, height
+            particleLayer.bounds = Rect(0, 0, width, height)
             particleLayer.draw(canvas)
         }
     }
@@ -109,7 +109,7 @@ class CapsuleGlowUnitImpl(
         curGlare = glarePx
 
         // 光心默认落在可用区域中心；真正跟随手指的偏移由 FrameTicker 通过 focus 传进来
-        lightLayer.bounds = 0, 0, aw + outset * 2, ah + outset * 2
+        lightLayer.bounds = Rect(0, 0, aw + outset * 2, ah + outset * 2)
         lightLayer.update(
             focusX, focusY, depth,
             GlowPalette.CONTENT_BASE * curAlpha,
@@ -117,7 +117,7 @@ class CapsuleGlowUnitImpl(
         )
         lightLayer.frameAlpha = curAlpha
 
-        particleLayer.bounds = 0, 0, aw + outset * 2, ah + outset * 2
+        particleLayer.bounds = Rect(0, 0, aw + outset * 2, ah + outset * 2)
 
         applyShape(aw, ah)
         bg.invalidate()

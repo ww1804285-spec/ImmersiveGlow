@@ -94,8 +94,10 @@ class LightLayerDrawable(
         val h = headroom.coerceIn(1f, 4f)
 
         // ---- ① 内部光晕：径向渐变 ----
-        val haloW = b.width() * (1f + depth * 0.5f) * GlowPalette.HALO_SCALE
-        val haloH = b.height() * (1f + depth * 0.5f) * GlowPalette.HALO_SCALE
+        val bw = b.width().toFloat()
+        val bh = b.height().toFloat()
+        val haloW = bw * (1f + depth * 0.5f) * GlowPalette.HALO_SCALE
+        val haloH = bh * (1f + depth * 0.5f) * GlowPalette.HALO_SCALE
         val haloR = maxOf(haloW, haloH) / 2f
         val centerX = b.exactCenterX() + cx
         val centerY = b.exactCenterY() + cy
@@ -128,7 +130,7 @@ class LightLayerDrawable(
                 GlowPalette.BORDER_BASE * borderIntensity * frameAlpha, h
             )
             borderPaint.color = GlowPalette.withAlpha(lightColor, strength)
-            borderPaint.strokeWidth = maxOf(1.5f, b.height() * 0.035f)
+            borderPaint.strokeWidth = maxOf(1.5f, bh * 0.035f)
 
             val path: Path? = shape.outline()
             if (path != null) {

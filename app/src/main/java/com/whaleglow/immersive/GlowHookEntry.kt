@@ -13,6 +13,7 @@ import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import java.lang.ref.WeakReference
+import java.util.WeakHashMap
 
 /**
  * 自研沉浸光感模块入口。
@@ -169,7 +170,8 @@ class GlowHookEntry : IXposedHookLoadPackage {
     }
 
     private fun ensureUnit(view: View, density: Float): CapsuleGlowUnitImpl? {
-        units[view]?.let { return it }
+        val existing = units[view]
+        if (existing != null) return existing
         if (units.size >= MAX_UNITS) return null
         val ctx: Context = view.context.applicationContext ?: return null
         val unit = CapsuleGlowUnitImpl(ctx)
