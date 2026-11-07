@@ -1,18 +1,15 @@
 package com.whaleglow.immersive
 
 import android.app.Application
-import android.content.Context
+import android.graphics.Canvas
 import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
-import android.widget.FrameLayout
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
-import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
 /**
@@ -39,17 +36,58 @@ class GlowHookEntry : IXposedHookLoadPackage {
     /** View -> 单元映射，弱引用，View 回收自动释放 */
     private val units = WeakHashMap<View, CapsuleGlowUnitImpl>()
 
-    /** 单元 -> 光晕宿主容器（确保它被添加到父 ViewGroup 里） */
-    private val hosts = WeakHashMap<CapsuleGlowUnitImpl, WeakReference<ViewGroup>>()
+    /** 防重入标记：自己的绘制流程里若再次触发 draw() 就直接跳过，杜绝死循环 */
+    private val inGlowDraw = ThreadLocal<Boolean>()
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "android") return
         try {
             hookTouchEvent(lpparam)
             hookLayout(lpparam)
+            hookDraw(lpparam)
         } catch (t: Throwable) {
             log("init failed: ${t.message}")
         }
+    }
+
+    /**
+     * 核心 hook：View.draw(Canvas)
+     *
+     * 为什么选这里：canvas 坐标系已是 View 本地坐标（0,0 = View 左上角），
+     * 光层 bounds 直接用 (0,0,width,height)，天然与 View 严丝合缝，不可能错位。
+     *
+     * 绘制顺序：
+     *   afterHookedMethod -> 在 View 自身内容画完之后叠加光层
+     *   （光晕向外溢出由 drawInView 里的 translate + 外扩 bounds 完成）
+     */
+    private fun hookDraw(lpparam: XC_LoadPackage.LoadPackageParam) {
+        XposedHelpers.findAndHookMethod(
+            View::class.java,
+            "draw",
+            Canvas::class.java,
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val view = param.thisObject as? View ?: return
+                    val canvas = param.args[0] as? Canvas ?: return
+                    if (inGlowDraw.get() == true) return
+
+                    val unit = units[view] ?: return
+                    if (!unit.isActive()) return
+                    val w = view.width
+                    val h = view.height
+                    if (w <= 0 || h <= 0) return
+
+                    inGlowDraw.set(true)
+                    try {
+                        unit.drawInView(canvas, w, h)
+                    } catch (t: Throwable) {
+                        log("draw error: ${t.message}")
+                    } finally {
+                        inGlowDraw.set(false)
+                    }
+                }
+            }
+        )
     }
 
     private fun hookTouchEvent(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -94,18 +132,6 @@ class GlowHookEntry : IXposedHookLoadPackage {
                     val unit = units[view] ?: return
                     unit.targetWidth = view.width
                     unit.targetHeight = view.height
-                    val bg = unit.getBgView() as? FrameLayout ?: return
-                    if (bg.layoutParams != null &&
-                        (bg.layoutParams.width != view.width || bg.layoutParams.height != view.height)
-                    ) {
-                        // 不能假设父容器类型：只改宽高，不碰类型
-                        val lp = bg.layoutParams
-                        lp.width = view.width
-                        lp.height = view.height
-                        bg.layoutParams = lp
-                        bg.requestLayout()
-                    }
-                    unit.lightLayer.invalidateSelf()
                 }
             }
         )
@@ -173,27 +199,11 @@ class GlowHookEntry : IXposedHookLoadPackage {
         val existing = units[view]
         if (existing != null) return existing
         if (units.size >= MAX_UNITS) return null
-        val ctx: Context = view.context.applicationContext ?: return null
-        val unit = CapsuleGlowUnitImpl(ctx)
+        val unit = CapsuleGlowUnitImpl(view)
         unit.targetWidth = view.width
         unit.targetHeight = view.height
         units[view] = unit
-        attachHost(view, unit)
         return unit
-    }
-
-    /** 把光晕宿主挂到 View 的父容器里，且位于 View 下方不被裁剪 */
-    private fun attachHost(view: View, unit: CapsuleGlowUnitImpl) {
-        val parent = view.parent as? ViewGroup ?: return
-        val bg = unit.getBgView() as? FrameLayout ?: return
-        if (bg.parent != null) return
-        val lp = FrameLayout.LayoutParams(view.width, view.height)
-        lp.leftMargin = view.left
-        lp.topMargin = view.top
-        // 插到 View 前面，让它绘制在 View 之下
-        parent.addView(bg, parent.indexOfChild(view).coerceAtLeast(0), lp)
-        bg.elevation = 0f
-        hosts[unit] = WeakReference(parent)
     }
 
     private fun log(msg: String) {

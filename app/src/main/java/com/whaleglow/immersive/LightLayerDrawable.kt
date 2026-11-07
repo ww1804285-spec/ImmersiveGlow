@@ -80,12 +80,15 @@ class LightLayerDrawable(
     }
 
     override fun draw(canvas: Canvas) {
-        if (contentIntensity <= 0.001f && borderIntensity <= 0.001f) return
+        // 光晕层：只画内部径向光场。描边由 drawBorderOnly() 独立负责，
+        // 二者使用不同 bounds，避免外扩把描边带偏。
+        if (contentIntensity <= 0.001f) return
+        if (frameAlpha <= 0.001f) return
 
         val b = bounds ?: return
         if (b.isEmpty) return
 
-        boundsRect.set(b)
+        boundsRect.set(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
         // 先把外接矩形写进 tmpRect，再让 shape 决定圆角——否则读到的是上一次的脏值
         tmpRect.set(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
         val radius = shape.resolve(tmpRect)
@@ -124,29 +127,50 @@ class LightLayerDrawable(
             paint.shader = null
         }
 
-        // ---- ② 边缘描边光：沿轮廓画一圈 ----
-        if (borderIntensity > 0.001f) {
-            val strength = GlowPalette.applyHeadroom(
-                GlowPalette.BORDER_BASE * borderIntensity * frameAlpha, h
-            )
-            borderPaint.color = GlowPalette.withAlpha(lightColor, strength)
-            borderPaint.strokeWidth = maxOf(1.5f, bh * 0.035f)
-
-            val path: Path? = shape.outline()
-            if (path != null) {
-                val m = canvas.save()
-                canvas.translate(b.left.toFloat(), b.top.toFloat())
-                val sx = b.width() / 100f
-                val sy = b.height() / 100f
-                canvas.scale(sx, sy)
-                canvas.drawPath(path, borderPaint)
-                canvas.restoreToCount(m)
-            } else {
-                canvas.drawRoundRect(boundsRect, radius, radius, borderPaint)
-            }
-        }
-
         dirty = false
+    }
+
+    /**
+     * 只画描边层（不画内部光晕）。
+     *
+     * 单独拆出来是为了让描边严格使用「View 真实 bounds」，
+     * 而光晕层使用「外扩后的 bounds」，两者坐标系互不干扰。
+     */
+    fun drawBorderOnly(canvas: Canvas) {
+        if (borderIntensity <= 0.001f) return
+        if (frameAlpha <= 0.001f) return
+
+        val b = bounds ?: return
+        if (b.isEmpty) return
+
+        boundsRect.set(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
+        tmpRect.set(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
+        val radius = shape.resolve(tmpRect)
+
+        val h = headroom.coerceIn(1f, 4f)
+        val strength = GlowPalette.applyHeadroom(
+            GlowPalette.BORDER_BASE * borderIntensity * frameAlpha, h
+        )
+        if (strength <= 0.001f) return
+
+        val bh = b.height().toFloat()
+        borderPaint.color = GlowPalette.withAlpha(lightColor, strength)
+        borderPaint.strokeWidth = maxOf(1.5f, bh * 0.035f)
+
+        val path: Path? = shape.outline()
+        if (path != null) {
+            // shape.outline() 返回的是 0..100 的百分比坐标系，需缩放贴合实际 bounds
+            val m = canvas.save()
+            val sx = boundsRect.width() / 100f
+            val sy = boundsRect.height() / 100f
+            canvas.translate(boundsRect.left, boundsRect.top)
+            canvas.scale(sx, sy)
+            canvas.drawPath(path, borderPaint)
+            canvas.restoreToCount(m)
+        } else {
+            val r = if (radius > 0f) radius else bh / 2f
+            canvas.drawRoundRect(boundsRect, r, r, borderPaint)
+        }
     }
 
     override fun setAlpha(alpha: Int) {

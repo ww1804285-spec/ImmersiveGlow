@@ -1,128 +1,40 @@
 package com.whaleglow.immersive
 
-import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Outline
-import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.view.View
-import android.view.ViewOutlineProvider
-import android.widget.FrameLayout
 
 /**
- * 一个"胶囊光效单元"：给任意目标 View 套一层前景光。
+ * 一个"胶囊光效单元"：给任意目标 View 套一层动态光。
  *
- * 对齐 OShin 协议语义：
- *   getBgView()                  背景层（光晕在外侧扩散，目标 View 之下）
- *   getFgView()                  前景层（描边高光，目标 View 之上）
- *   needsRelayout(left,top,vw,vh)  尺寸/位置变化时返回 true -> 需要重新布局
+ * v2 架构（重写）：不再创建任何子 View，也不往父容器 addView。
+ * 光层直接寄生在目标 View 的 draw(Canvas) 里，坐标系天然跟随 View 自身，
+ * 彻底消除「大圆角矩形糊在 SystemUI 上」「边框没对齐、大小不同」两类错位。
+ *
+ * 对齐 OShin 协议语义（但实现方式不同）：
  *   updateFrame(aw, ah, cornerPx, alpha, glarePx)
- *        aw/ah       可用宽高（不含外扩）
+ *        aw/ah       目标 View 实际宽高（= View.width / View.height）
  *        cornerPx    圆角半径
  *        alpha       整体透明度（呼吸）
  *        glarePx     高光斑直径
  */
-class CapsuleGlowUnitImpl(
-    context: Context,
-    private val shape: LightShapeImpl = RoundRectShape()
-) {
+class CapsuleGlowUnitImpl(val hostView: View) {
 
     companion object {
-        /** 光晕向外扩张的额外留白，给 halo 留绘制空间 */
-        private const val OUTSET_DP = 10f
+        /** 光晕外扩的额外留白比例（相对 View 短边），用于给 halo 溢出留空间 */
+        private const val OUTSET_RATIO = 0.16f
     }
-
-    private val density = context.resources.displayMetrics.density
-    private val outset = (OUTSET_DP * density).toInt()
 
     val lightLayer = LightLayerDrawable()
     val particleLayer = ParticleLayerDrawable()
-
-    private val bg = object : FrameLayout(context) {
-        init {
-            setWillNotDraw(false)
-            clipChildren = false
-            clipToPadding = false
-            background = null
-            elevation = 0f
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            lightLayer.bounds = Rect(0, 0, width, height)
-            lightLayer.draw(canvas)
-        }
-
-        override fun dispatchDraw(canvas: Canvas) {
-            super.dispatchDraw(canvas)
-            particleLayer.bounds = Rect(0, 0, width, height)
-            particleLayer.draw(canvas)
-        }
-    }
-
-    private val fg = View(context).apply {
-        setWillNotDraw(false)
-        isClickable = false
-        isFocusable = false
-    }
-
-    // 缓存上一次的布局参数，用于 needsRelayout 判断
-    private var lastLeft = Int.MIN_VALUE
-    private var lastTop = Int.MIN_VALUE
-    private var lastW = -1
-    private var lastH = -1
 
     // 当前帧参数
     private var curAlpha = 1f
     private var curCorner = 0f
     private var curGlare = 0f
 
-    private val tmpRect = RectF()
-    private val tmpPath = Path()
-
-    init {
-        lightLayer.lightColor = GlowPalette.DEFAULT_LIGHT
-        particleLayer.lightColor = GlowPalette.DEFAULT_LIGHT
-    }
-
-    fun getBgView(): View = bg
-
-    fun getFgView(): View = fg
-
-    /** 尺寸/位置变了就需要重排（同时把 shader 缓存打脏） */
-    fun needsRelayout(left: Int, top: Int, viewWidth: Int, viewHeight: Int): Boolean {
-        val changed = left != lastLeft || top != lastTop ||
-                viewWidth != lastW || viewHeight != lastH
-        if (changed) {
-            lastLeft = left
-            lastTop = top
-            lastW = viewWidth
-            lastH = viewHeight
-        }
-        return changed
-    }
-
-    /** 每帧刷新：这里负责把五参翻译成光层和粒子层的内部状态 */
-    fun updateFrame(aw: Int, ah: Int, cornerPx: Float, alpha: Float, glarePx: Float) {
-        curAlpha = alpha.coerceIn(0f, 1f)
-        curCorner = cornerPx
-        curGlare = glarePx
-
-        // 光心默认落在可用区域中心；真正跟随手指的偏移由 FrameTicker 通过 focus 传进来
-        lightLayer.bounds = Rect(0, 0, aw + outset * 2, ah + outset * 2)
-        lightLayer.update(
-            focusX, focusY, depth,
-            GlowPalette.CONTENT_BASE * curAlpha,
-            GlowPalette.BORDER_BASE * curAlpha
-        )
-        lightLayer.frameAlpha = curAlpha
-
-        particleLayer.bounds = Rect(0, 0, aw + outset * 2, ah + outset * 2)
-
-        applyShape(aw, ah)
-        bg.invalidate()
-    }
-
+    /** 光心偏移（相对 View 中心，px），由 FrameTicker 跟随手指写入 */
     var focusX = 0f
     var focusY = 0f
     var depth = 0f
@@ -131,38 +43,76 @@ class CapsuleGlowUnitImpl(
     var targetWidth: Int = 0
     var targetHeight: Int = 0
 
-    private fun applyShape(w: Int, h: Int) {
-        if (w <= 0 || h <= 0) return
-        tmpRect.set(0f, 0f, w.toFloat(), h.toFloat())
-        val r = shape.resolve(tmpRect)
-        val clipPath = shape.outline() ?: tmpPath.apply {
-            reset()
-            addRoundRect(tmpRect, r, r, Path.Direction.CW)
-        }
-        bg.clipToOutline = true
-        bg.outlineProvider = object : ViewOutlineProvider() {
-            override fun getOutline(view: View, outline: Outline) {
-                outline.setRoundRect(
-                    Rect(0, 0, w, h),
-                    if (r > 0f) r else cornerOrFallback(h)
-                )
-            }
-        }
-        bg.invalidateOutline()
+    private val tmpRect = RectF()
+
+    init {
+        lightLayer.lightColor = GlowPalette.DEFAULT_LIGHT
+        particleLayer.lightColor = GlowPalette.DEFAULT_LIGHT
     }
 
-    private fun cornerOrFallback(h: Int): Float =
-        if (curCorner > 0f) curCorner else h / 2f
+    /**
+     * 每帧刷新：把五参翻译成光层和粒子层的内部状态。
+     * 注意：这里不碰 bounds，bounds 由 drawInView() 每帧现场写入。
+     */
+    fun updateFrame(aw: Int, ah: Int, cornerPx: Float, alpha: Float, glarePx: Float) {
+        curAlpha = alpha.coerceIn(0f, 1f)
+        curCorner = cornerPx
+        curGlare = glarePx
+        targetWidth = aw
+        targetHeight = ah
+
+        lightLayer.update(
+            focusX, focusY, depth,
+            GlowPalette.CONTENT_BASE * curAlpha,
+            GlowPalette.BORDER_BASE * curAlpha
+        )
+        lightLayer.frameAlpha = curAlpha
+    }
+
+    /**
+     * 在目标 View 自己的 canvas 上绘制光效。
+     *
+     * 调用时机：View.draw() hook 内，canvas 坐标系已经是「View 本地坐标」，
+     * 即 (0,0) = View 左上角。因此：
+     *   · bounds 直接用 Rect(0, 0, w, h) —— 永远不错位
+     *   · 光晕外扩靠 translate(-outset) + 放大 bounds 实现溢出，不改 View 布局
+     */
+    fun drawInView(canvas: Canvas, w: Int, h: Int) {
+        if (w <= 0 || h <= 0) return
+        if (curAlpha <= 0.001f) return
+
+        val outset = (minOf(w, h) * OUTSET_RATIO).toInt().coerceIn(2, 40)
+
+        // ① 光晕层：外扩画，允许溢出
+        val sc = canvas.save()
+        canvas.translate(-outset.toFloat(), -outset.toFloat())
+        lightLayer.bounds = Rect(0, 0, w + outset * 2, h + outset * 2)
+        lightLayer.draw(canvas)
+        canvas.restoreToCount(sc)
+
+        // ② 描边层：严格贴合 View 真实边界，绝不偏移
+        val sc2 = canvas.save()
+        lightLayer.bounds = Rect(0, 0, w, h)
+        lightLayer.drawBorderOnly(canvas)
+        canvas.restoreToCount(sc2)
+
+        // ③ 粒子层：贴合 View
+        val sc3 = canvas.save()
+        particleLayer.bounds = Rect(0, 0, w, h)
+        particleLayer.draw(canvas)
+        canvas.restoreToCount(sc3)
+    }
 
     fun setLightColor(color: Int) {
         lightLayer.lightColor = color
         particleLayer.lightColor = color
-        bg.invalidate()
     }
 
     fun setHeadroom(h: Float) {
         lightLayer.headroom = h
         particleLayer.headroom = h
-        bg.invalidate()
     }
+
+    /** 供 FrameTicker 判断是否需要继续 tick */
+    fun isActive(): Boolean = curAlpha > 0.001f
 }
