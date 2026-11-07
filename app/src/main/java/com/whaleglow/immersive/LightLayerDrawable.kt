@@ -87,7 +87,7 @@ class LightLayerDrawable(
 
         boundsRect.set(b)
         // 先把外接矩形写进 tmpRect，再让 shape 决定圆角——否则读到的是上一次的脏值
-        tmpRect.set(b.left, b.top, b.right, b.bottom)
+        tmpRect.set(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
         val radius = shape.resolve(tmpRect)
 
         val c = GlowPalette.withAlpha(lightColor, 1f)
@@ -135,7 +135,7 @@ class LightLayerDrawable(
             val path: Path? = shape.outline()
             if (path != null) {
                 val m = canvas.save()
-                canvas.translate(b.left, b.top)
+                canvas.translate(b.left.toFloat(), b.top.toFloat())
                 val sx = b.width() / 100f
                 val sy = b.height() / 100f
                 canvas.scale(sx, sy)
