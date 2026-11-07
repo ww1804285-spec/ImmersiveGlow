@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- LSPosed 模块作用域声明：空 scope 表示"不预设"，由用户在管理器里自行勾选 -->
+<scope>
+    <!-- 留空 = 全局可选。想锁定某些应用可以在这里写 <package> 标签，例如：
+    <package>com.android.systemui</package>
+    -->
+</scope>

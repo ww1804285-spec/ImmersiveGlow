@@ -1,0 +1,16 @@
+# 忽略编译产物
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+
+# 不要提交 keystore（workflow 自动生成临时签名）
+keystore/
+*.jks
+*.keystore
+
+# libs 里保留 api-82.jar（必须提交）
+!app/libs/api-82.jar

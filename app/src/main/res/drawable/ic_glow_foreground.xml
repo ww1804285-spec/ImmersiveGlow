@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 鲸鱼娘的光感图标：一颗被灵气包裹的光核 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 外层光晕 -->
+    <path
+        android:fillColor="#3300E5FF"
+        android:pathData="M54,26 C69.5,26 82,38.5 82,54 C82,69.5 69.5,82 54,82 C38.5,82 26,69.5 26,54 C26,38.5 38.5,26 54,26 Z" />
+
+    <!-- 中层光晕 -->
+    <path
+        android:fillColor="#5526D8FF"
+        android:pathData="M54,32 C66.2,32 76,41.8 76,54 C76,66.2 66.2,76 54,76 C41.8,76 32,66.2 32,54 C32,41.8 41.8,32 54,32 Z" />
+
+    <!-- 光核 -->
+    <path
+        android:fillColor="#FFF2F6FF"
+        android:pathData="M54,38 C62.8,38 70,45.2 70,54 C70,62.8 62.8,70 54,70 C45.2,70 38,62.8 38,54 C38,45.2 45.2,38 54,38 Z" />
+
+    <!-- 高光斑 -->
+    <path
+        android:fillColor="#99FFFFFF"
+        android:pathData="M47,45 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+</vector>

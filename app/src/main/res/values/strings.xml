@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="module_name">鲸鱼娘 · 沉浸光感</string>
+    <string name="module_desc">自研沉浸光感引擎：为可点击控件挂上跟随手指的柔光 + 粒子尾迹 + 点击爆散。不依赖任何第三方应用，不涉及任何付费功能。</string>
+    <string name="app_desc">本模块是纯自研的视觉特效框架，基于 Android View 层通用 hook 实现，与任何商业应用无关联。</string>
+    <string name="state_enabled">沉浸光感已启用</string>
+    <string name="state_hint">在 LSPosed 中勾选目标应用后重启应用即可看到效果～</string>
+</resources>

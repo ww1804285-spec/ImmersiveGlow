@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自适应图标背景：深海夜蓝，衬托蓝色光核 -->
+    <color name="ic_launcher_background">#FF0A1522</color>
+</resources>

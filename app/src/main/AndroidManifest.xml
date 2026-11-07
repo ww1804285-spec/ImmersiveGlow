@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 纯 View 层绘制：不需要网络/存储/位置/短信等任何权限 -->
+    <application
+        android:allowBackup="false"
+        android:hasCode="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/module_name"
+        android:supportsRtl="true">
+
+        <!-- LSPosed 通过这段 meta-data 识别模块 -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="@string/module_desc" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
+
+        <!-- 作用域声明：LSPosed 读取 res/xml/scopes.xml，留空由用户在管理器里勾选 -->
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@xml/scopes" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/module_name"
+            android:theme="@style/Theme.ImmersiveGlow">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
